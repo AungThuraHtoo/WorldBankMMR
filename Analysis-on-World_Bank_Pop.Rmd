@@ -1,0 +1,205 @@
+---
+title: "Analysis on World_Bank_Pop"
+author: "Aung Thura Htoo"
+date: "2024-03-12"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+
+```{r}
+options(repos = c(CRAN = "https://cran.rstudio.com/"))
+install.packages("tidyverse")
+library(tidyverse)
+```
+
+options(repos = c(CRAN = "https://cran.rstudio.com/")) is a useful command when you prefer to use a specific CRAN mirror in RStudio CRAN mirror in package installions. This can be handy in knitting R Markdown to HTML.
+
+Installing tidyverse can give me access to many datasets including world_bank_pop.
+```{r}
+(.packages())
+```
+
+This command (.packages()) is a base function in R that lists the names of the attached packages in your current R session. When you load a package in R using library() or require(), it becomes attached and ready to use.
+
+```{r}
+my_data<- world_bank_pop          
+head(my_data,6)
+str(my_data)
+```
+
+head() and str() are useful commands in R to have a better understanding on your dataset. head() shows the first few rows of your dataframe while str() displays the structure of your dataframe or R object.
+
+The data in world_bank_pop will be easier to analyze if we convert the columns from 2000 to 2017 to rows. 
+
+```{r}
+my_data2 <- my_data %>% pivot_longer(cols = -c(country, indicator), names_to = "Year", values_to = "Value")
+head(my_data2)
+str(my_data2)
+
+```
+
+pivot_longer() is a command in tidyr, which reshapes the data from wide to long format. cols= -c(country,indicator) excludes the the two specific columns and all other columns are reshaped. names_to = "Year" specifies the name of the column that has the variable names, while values_to="Value" specifies the name of the column that has the values after pivoting.
+
+
+```{r}
+my_data2 %>% 
+  filter(country == "MMR") %>%
+  ggplot(aes(Year, Value))+
+  geom_point()
+```
+
+I have filtered the country "Myanmar" - code name "MMR", and plotted the year on the x-axis and values of population on y-axis. You can see three different dotted lines that represent different values by indicator. The thing that went wrong for two indicators namely SP.POP.GROW and SP.URB.GROW is that we plotted against very high numbers of SP.POP.TOTL and SP.URB.TOTL.
+```{r}
+my_data2 %>% 
+  filter(country == "MMR", indicator == c("SP.POP.GROW", "SP.URB.GROW")) %>%
+  ggplot(aes(Year, Value))+
+  geom_point()+
+  facet_wrap(~indicator)
+```
+
+By applying filter on two proportion value and facet_wrap() function, we can clearly see the scatter plot for the population in each year by each indicator type. But the labels on x-axis are overlapped. 
+
+```{r}
+my_data2 %>% 
+  filter(country == "MMR", indicator == c("SP.POP.GROW", "SP.URB.GROW")) %>%
+  ggplot(aes(Year, Value))+
+  geom_point()+
+  facet_wrap(~indicator)+
+  scale_x_discrete(breaks = function(x) c(first(x), last(x), x[length(x) %/% 2]))+
+  labs(title = "Percentage Growth rate of entire vs urban population in Myanmar")
+```
+
+By adding the scale_x_discrete(), we cleaned up the labels on x axis, by showing only the first, middle, and last labels. Note: since the labels are discrete, we use scale_x_discrete() instead of scale_x_continuous().
+
+Let's go back to the population value SP.POP.TOTL and SP.URB.TOTL.
+
+```{r}
+my_data2 %>% 
+  filter(country == "MMR", indicator == c("SP.POP.TOTL", "SP.URB.TOTL")) %>%
+  ggplot(aes(Year, Value))+
+  geom_point()+
+  facet_wrap(~indicator)+
+  scale_x_discrete(breaks = function(x) c(first(x), last(x), x[length(x) %/% 2]))+
+  labs(title = "Total population vs urban population in Myanmar")
+```
+
+These graphs look great, let's try with line graphs.
+
+By adding the group and color aesthetic in ggplot()function, different colors are denoted to values in each indicator graph. 
+
+```{r}
+my_data2 %>%
+  filter(country == "MMR", indicator == c("SP.POP.GROW", "SP.URB.GROW")) %>%
+  ggplot(aes(Year, Value, group = indicator, color = indicator)) +
+  geom_line() +
+  facet_wrap(~indicator) +
+  scale_x_discrete(breaks = function(x) c(first(x), last(x), x[length(x) %/% 2]))+
+  labs(title = "Percentage Growth rate of entire vs urban population in Myanmar")
+```
+
+```{r}
+my_data2 %>%
+  filter(country == "MMR", indicator == c("SP.POP.TOTL", "SP.URB.TOTL")) %>%
+  ggplot(aes(Year, Value, group = indicator, color = indicator)) +
+  geom_line() +
+  facet_wrap(~indicator) +
+  scale_x_discrete(breaks = function(x) c(first(x), last(x), x[length(x) %/% 2]))+
+  labs(title = "Total population vs urban population in Myanmar")
+```
+
+
+**ASEAN Countries** - SP.POP.TOTL
+
+```{r}
+my_data_ASEAN <- my_data2 %>% 
+  filter(country %in% c("MMR", "BRN","KHM", "IDN", "LAO", "MYS",  "PHL", "SGP", "THA", "VNM"), indicator == "SP.POP.TOTL") %>% mutate(Population_m = round(Value/ 1e6, 2))
+
+head(my_data_ASEAN)
+```
+
+**ASEAN Countries** - SP.POP.TOTL from 2014 to 2017
+
+```{r}
+my_data_ASEAN2014_7 <- my_data_ASEAN %>% filter( Year %in% c("2014", "2015", "2016", "2017"))
+
+head(my_data_ASEAN2014_7)
+```
+
+**Population Distribution in ASEAN Countries**
+```{r}
+
+# Reorder the country factor based on Population_m in descending order
+my_data_ASEAN2014_7$country <- reorder(my_data_ASEAN2014_7$country, my_data_ASEAN2014_7$Population_m, FUN = max)
+
+# Plot
+my_data_ASEAN2014_7 %>% 
+  ggplot(aes(x = Population_m, y = country, color = Population_m)) +
+  geom_point(size = 4) +
+  geom_segment(aes(xend = 0, yend = country), size = 2) +
+  geom_text(aes(label = round(Population_m, 2)), color = "white", size = 1.5) +
+  geom_vline(xintercept = 50, color = "black", linetype = "dashed") +  # Add vertical line at Population_m = 50
+  scale_x_continuous(
+    "", 
+    expand = c(0,0), 
+    limits = c(0, 300), 
+    breaks = seq(0, 300, by = 50),  # Set breaks by 50
+    position = "top"
+  ) +
+  scale_y_discrete(expand = expansion(mult = c(0.05, 0.1))) +  # Add space on y-axis
+  scale_color_gradientn(colors = c("lightblue", "darkblue")) +
+  labs(
+    title = "Population Distribution in ASEAN Countries",
+    caption = "Source: World_Bank_Pop"
+  ) +
+  facet_wrap(~Year) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+```
+
+**ASEAN Countries** - SP.URB.TOTL from 2014 to 2017
+
+```{r}
+my_data_ASEAN_URB <- my_data2 %>% 
+  filter(country %in% c("MMR", "BRN","KHM", "IDN", "LAO", "MYS",  "PHL", "SGP", "THA", "VNM"), indicator == "SP.URB.TOTL", Year %in% c("2014", "2015", "2016", "2017")) %>% mutate(Urban_Pop_m = round(Value/ 1e6, 2))
+```
+
+**Urban Population Distribution in ASEAN Countries**
+```{r}
+
+# Reorder the country factor based on Population_m in descending order
+my_data_ASEAN_URB$country <- reorder(my_data_ASEAN_URB$country, my_data_ASEAN_URB$Urban_Pop_m, FUN = max)
+
+# Plot
+my_data_ASEAN_URB %>% 
+  ggplot(aes(x = Urban_Pop_m, y = country, color = Urban_Pop_m)) +
+  geom_point(size = 4) +
+  geom_segment(aes(xend = 0, yend = country), size = 2) +
+  geom_text(aes(label = round(Urban_Pop_m, 2)), color = "white", size = 1.5) +
+  geom_vline(xintercept = 25, color = "black", linetype = "dashed") +  # Add vertical line at Urban_Pop_m = 25
+  scale_x_continuous(
+    "", 
+    expand = c(0,0), 
+    limits = c(0, 150), 
+    breaks = seq(0, 150, by = 25),  # Set breaks by 25
+    position = "top"
+  ) +
+  scale_y_discrete(expand = expansion(mult = c(0.05, 0.1))) +  # Add space on y-axis
+  scale_color_gradientn(colors = c("lightblue", "darkblue")) +
+  labs(
+    title = "Urban Population Distribution in ASEAN Countries",
+    caption = "Source: World_Bank_Pop"
+  ) +
+  facet_wrap(~Year) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+```
+
